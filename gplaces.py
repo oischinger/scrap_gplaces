@@ -53,6 +53,7 @@ def getEarliestRating(element):
     if element._details != None and 'reviews' in element._details:
         for review in element._details['reviews']:
             if 'time' in review and datetime.fromtimestamp(review['time']) < firstRatingDate:
+                print("Review Time " + str(review['time']) + " - " + str(datetime.fromtimestamp(review['time'])))
                 firstRatingDate = datetime.fromtimestamp(review['time'])
     return firstRatingDate
 
@@ -77,10 +78,12 @@ def addPlaces(places):
                     if domain.creation_date != None:
                         print ("Domain has a creation date")
                         bestDate = domain.creation_date
+                    
+                    print ("reviewDate: " + str(ratingDate) + " / domaindate: " + str(bestDate))
 
-                    if bestDate > ratingDate:
+                    if bestDate.year > ratingDate.year:
                         bestDate = ratingDate
-                        print ("Rating earlier than Domain date: reviewDate: " + str(ratingDate) + " / domaindate: " + str(bestDate))
+                        print("TOOK Review Date")
                     allPlaces.append({'name': element.name, 'rating': element.rating, 'website': element.website, 'updated': bestDate})
                 except:
                     allPlaces.append({'name': element.name, 'rating': element.rating, 'website': element.website, 'updated': getEarliestRating(element)})
