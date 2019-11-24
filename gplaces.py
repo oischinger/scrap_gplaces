@@ -19,6 +19,9 @@ my_parser.add_argument('--search',
 my_parser.add_argument('--radius',
                        type=int,
                        help='the radius in km')
+my_parser.add_argument('--stopafter',
+                       type=int,
+                       help='maximum number of entries to process')
 my_parser.add_argument('--lat',
                        type=float,
                        help='the latitute')
@@ -33,23 +36,58 @@ google_places = GooglePlaces(args.apikey)
 lat_start = args.lat
 lon_start = args.lon
 radius_km = args.radius
+stopafter = args.stopafter
 step_width = 3.0
 steps = radius_km/step_width
+placesFound = 0
+
+def placeAlreadyProcessed(name):
+    for existingEntry in allPlaces:
+        if existingEntry['name'] == name:
+            return True
+    return False
+
+def getEarliestRating(element):
+    firstRatingDate = datetime.now()
+
+    if element._details != None and 'reviews' in element._details:
+        for review in element._details['reviews']:
+            if 'time' in review and datetime.fromtimestamp(review['time']) < firstRatingDate:
+                firstRatingDate = datetime.fromtimestamp(review['time'])
+    return firstRatingDate
 
 def addPlaces(places):
+    global placesFound
     for element in places:
-        element.get_details()
-        print("Adding " + element.name)
-        if element.website == None or len(element.website) < 2:
-            allPlaces.append({'name': element.name, 'rating': element.rating})
+        if placeAlreadyProcessed(element.name):
+            print("Skipping existing " + element.name)
         else:
-            domainstr = urlparse(element.website).netloc
-            domainstr = '.'.join(domainstr.split('.')[-2:])
-            try:
-                domain = whois.query(domainstr)
-                allPlaces.append({'name': element.name, 'rating': element.rating, 'website': element.website, 'updated': domain.last_updated})
-            except:
-                allPlaces.append({'name': element.name, 'rating': element.rating, 'website': element.website, 'updated': 0})
+            element.get_details()
+            print("Adding " + element.name)
+            placesFound += 1
+            if element.website == None or len(element.website) < 2:
+                allPlaces.append({'name': element.name, 'rating': element.rating, 'updated': getEarliestRating(element)})
+            else:
+                domainstr = urlparse(element.website).netloc
+                domainstr = '.'.join(domainstr.split('.')[-2:])
+                try:
+                    domain = whois.query(domainstr)
+                    ratingDate = getEarliestRating(element)
+                    bestDate = domain.last_updated
+                    if domain.creation_date != None:
+                        print ("Domain has a creation date")
+                        bestDate = domain.creation_date
+
+                    if bestDate > ratingDate:
+                        bestDate = ratingDate
+                        print ("Rating earlier than Domain date: reviewDate: " + str(ratingDate) + " / domaindate: " + str(bestDate))
+                    allPlaces.append({'name': element.name, 'rating': element.rating, 'website': element.website, 'updated': bestDate})
+                except:
+                    allPlaces.append({'name': element.name, 'rating': element.rating, 'website': element.website, 'updated': getEarliestRating(element)})
+
+            if placesFound >= stopafter:
+                print("Stopping after " + str(placesFound) + " places")
+                sys.exit(0)
 
 def printResults():
     printedNames = []
